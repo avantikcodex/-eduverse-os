@@ -146,11 +146,6 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState("learn");
   const [answer, setAnswer] = useState("");
-
-  const [chatHistory, setChatHistory] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
-
   const [answerLoading, setAnswerLoading] = useState(false);
 
   const [material, setMaterial] = useState<Material | null>(null);
@@ -259,23 +254,27 @@ export default function Home() {
     setProfileOpen(false);
     setNotificationsOpen(false);
   }
+
   async function askAI() {
     if (!question.trim()) {
       showToast("Type a question first.");
       return;
     }
 
-    const currentQuestion = question.trim();
-
     try {
       setAnswerLoading(true);
       setAnswer("");
+
+      const body: any = {
+        question,
+        mode,
+      };
 
       let tutorMaterialId: string | null = null;
 
       try {
         const savedTutorMaterial = localStorage.getItem(
-          "eduverse_tutor_material",
+          "eduverse_tutor_material"
         );
 
         if (savedTutorMaterial) {
@@ -291,12 +290,6 @@ export default function Home() {
 
       const activeMaterialId =
         material?.material_id || tutorMaterialId;
-
-      const body: any = {
-        question: currentQuestion,
-        mode,
-        history: chatHistory.slice(-10),
-      };
 
       if (activeMaterialId) {
         body.material_id = activeMaterialId;
@@ -316,33 +309,15 @@ export default function Home() {
         throw new Error(data.detail || "AI request failed.");
       }
 
-      const aiAnswer = data.answer || "No answer received.";
-
-      setChatHistory((previous) => [
-        ...previous,
-        {
-          role: "user",
-          content: currentQuestion,
-        },
-        {
-          role: "assistant",
-          content: aiAnswer,
-        },
-      ]);
-
-      setAnswer(aiAnswer);
-      setQuestion("");
+      setAnswer(data.answer || "No answer received.");
     } catch (error: any) {
       setAnswer(
-        `### AI request failed\n\n${
-          error.message || "Unknown error"
-        }`,
+        `### AI request failed\n\n${error.message || "Unknown error"}`,
       );
     } finally {
       setAnswerLoading(false);
     }
   }
-
 
 async function uploadMaterial(fileOverride?: File) {
   const selectedFile = fileOverride ?? file;

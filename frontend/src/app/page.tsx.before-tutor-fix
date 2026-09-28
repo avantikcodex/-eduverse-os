@@ -146,11 +146,6 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState("learn");
   const [answer, setAnswer] = useState("");
-
-  const [chatHistory, setChatHistory] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
-
   const [answerLoading, setAnswerLoading] = useState(false);
 
   const [material, setMaterial] = useState<Material | null>(null);
@@ -259,47 +254,24 @@ export default function Home() {
     setProfileOpen(false);
     setNotificationsOpen(false);
   }
+
   async function askAI() {
     if (!question.trim()) {
       showToast("Type a question first.");
       return;
     }
 
-    const currentQuestion = question.trim();
-
     try {
       setAnswerLoading(true);
       setAnswer("");
 
-      let tutorMaterialId: string | null = null;
-
-      try {
-        const savedTutorMaterial = localStorage.getItem(
-          "eduverse_tutor_material",
-        );
-
-        if (savedTutorMaterial) {
-          const parsed = JSON.parse(savedTutorMaterial);
-
-          if (parsed?.material_id) {
-            tutorMaterialId = parsed.material_id;
-          }
-        }
-      } catch (error) {
-        console.warn("Could not read Tutor PDF:", error);
-      }
-
-      const activeMaterialId =
-        material?.material_id || tutorMaterialId;
-
       const body: any = {
-        question: currentQuestion,
+        question,
         mode,
-        history: chatHistory.slice(-10),
       };
 
-      if (activeMaterialId) {
-        body.material_id = activeMaterialId;
+      if (material?.material_id) {
+        body.material_id = material.material_id;
       }
 
       const response = await fetch(`${API}/ai/ask`, {
@@ -316,33 +288,15 @@ export default function Home() {
         throw new Error(data.detail || "AI request failed.");
       }
 
-      const aiAnswer = data.answer || "No answer received.";
-
-      setChatHistory((previous) => [
-        ...previous,
-        {
-          role: "user",
-          content: currentQuestion,
-        },
-        {
-          role: "assistant",
-          content: aiAnswer,
-        },
-      ]);
-
-      setAnswer(aiAnswer);
-      setQuestion("");
+      setAnswer(data.answer || "No answer received.");
     } catch (error: any) {
       setAnswer(
-        `### AI request failed\n\n${
-          error.message || "Unknown error"
-        }`,
+        `### AI request failed\n\n${error.message || "Unknown error"}`,
       );
     } finally {
       setAnswerLoading(false);
     }
   }
-
 
 async function uploadMaterial(fileOverride?: File) {
   const selectedFile = fileOverride ?? file;
@@ -1446,8 +1400,12 @@ function TutorView({
       if (!selectedFile) return;
 
       try {
+        setUploadLoading(true);
+
         const formData = new FormData();
         formData.append("file", selectedFile);
+        formData.append("subject", subject);
+        formData.append("chapter", chapter);
 
         const response = await fetch(`${API}/materials/upload`, {
           method: "POST",
@@ -1460,23 +1418,18 @@ function TutorView({
           throw new Error(data.detail || "PDF upload failed.");
         }
 
-        // Save the uploaded material for AI Tutor.
-        localStorage.setItem(
-          "eduverse_tutor_material",
-          JSON.stringify(data)
-        );
+        // IMPORTANT:
+        // Save the returned material object.
+        // askAI() already reads material.material_id.
+        setFile(selectedFile);
+        setMaterial(data);
 
-        alert(`✅ ${selectedFile.name} uploaded and connected to AI Tutor.`);
-      } catch (error) {
+        showToast("✓ PDF uploaded and connected to AI Tutor.");
+      } catch (error: any) {
         console.error("PDF upload error:", error);
-        alert(
-          `❌ ${
-            error instanceof Error
-              ? error.message
-              : "PDF upload failed."
-          }`
-        );
+        showToast(error.message || "PDF upload failed.");
       } finally {
+        setUploadLoading(false);
         e.target.value = "";
       }
     }}

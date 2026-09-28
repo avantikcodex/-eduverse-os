@@ -50,16 +50,10 @@ MATERIALS: dict[str, dict] = {}
 # MODELS
 # ============================================================
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=10000)
-
-
 class AskRequest(BaseModel):
     material_id: str | None = None
     question: str = Field(min_length=2, max_length=5000)
     mode: Literal["learn", "exam", "notes", "quick"] = "learn"
-    history: list[ChatMessage] = Field(default_factory=list)
 
 
 class QuizRequest(BaseModel):
@@ -529,29 +523,6 @@ def ask_ai(request: AskRequest):
         has_material=pdf_path is not None,
         web_enabled=web_enabled,
     )
-
-    # Add recent conversation so follow-up questions have context.
-    if request.history:
-        recent_history = request.history[-10:]
-
-        conversation_text = "\n\nCONVERSATION HISTORY:\n"
-
-        for message in recent_history:
-            speaker = (
-                "Student"
-                if message.role == "user"
-                else "EduVerse"
-            )
-
-            conversation_text += (
-                f"{speaker}: {message.content}\n"
-            )
-
-        prompt += (
-            conversation_text
-            + "\nCURRENT STUDENT QUESTION:\n"
-            + request.question
-        )
 
     client = genai.Client(api_key=api_key)
 
